@@ -12,8 +12,6 @@ using System.Collections.Generic;
 		discard
 	}
 	public class CardProspector : Card { // Make sure CardProspector extends Card
-		// Use this for initialization
-	
 		// This is how you use the enum CardState
 		public CardState state = CardState.drawpile;
 		// The hiddenBy list stores which other cards will keep this face down
