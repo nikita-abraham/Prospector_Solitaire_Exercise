@@ -235,7 +235,23 @@ public class Deck : MonoBehaviour {
 				tGO.transform.localPosition = Vector3.zero;  // slap it smack dab in the middle
 				tGO.name = "face";
 			}
+
+			//Add Card Back
+			//The Card_Back will be able to cover everything else on the card
+			tGO = Instantiate(prefabSprite) as GameObject;
+			tSR = tGO.GetComponent<SpriteRenderer>();
+			tSR.sprite = cardBack;
+			tGO.transform.parent = card.transform;
+			tGO.transform.localPosition = Vector3.zero;
+			//This is a higher sortingOrder than anything else
+			tSR.sortingOrder = 2;
+			tGO.name = "back";
+			card.back = tGO;
 			
+			// Default to face-up
+			card.faceUp = false; // Use the property faceUp of Card
+			
+			//Add the card to the deck
 			cards.Add (card);
 		} // for all the Cardnames	
 	} // makeCards
