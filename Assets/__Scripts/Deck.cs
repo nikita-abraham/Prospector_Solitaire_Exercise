@@ -249,5 +249,26 @@ public class Deck : MonoBehaviour {
 		}//foreach	
 		return (null);  // couldn't find the sprite (should never reach this line)
 	 }// getFace 
-	
+
+	//shuffle the cards in Deck
+	static public void Shuffle(ref List<Card> oCards) {
+		//create a temporary List to hold the new shuffle order
+		List<Card> tCards = new List<Card>();
+
+		int ndx; //this will hold the index of the card to be moved
+		tCards = new List<Card>(); // initialize the temporary List
+		//repeat as long as there are cards in the original list
+		while (oCards.Count > 0) {
+			//pick the index of a random card
+			ndx = Random.Range(0, oCards.Count);
+			//add that card to the temporary list
+			tCards.Add(oCards[ndx]);
+			//and remove that card from the original list
+			oCards.RemoveAt(ndx);
+		}
+		//replace the original List with the temporary List
+		oCards = tCards;
+		//because oCards is a reference variable, the original was 
+		//passed in is changed as well
+	}
 } // Deck class
