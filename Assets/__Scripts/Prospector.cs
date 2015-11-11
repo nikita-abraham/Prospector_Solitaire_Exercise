@@ -47,6 +47,9 @@ public class Prospector : MonoBehaviour {
 	public int score = 0;
 	public FloatingScore fsRun;
 
+	public GUIText GTGameOver;
+	public GUIText GTRoundResult;
+
 	void Awake(){
 		S = this;
 		//check for a high score in PlayerPrefs
@@ -57,6 +60,28 @@ public class Prospector : MonoBehaviour {
 		score += SCORE_FROM_PREV_ROUND;
 		//reset the SCORE_FROM_PREV_ROUND
 		SCORE_FROM_PREV_ROUND = 0;
+
+		//set up the GUITexts that show at the end of the round
+		//get the GUIText Components
+		GameObject go = GameObject.Find ("GameOver");
+		if (go != null) {
+			GTGameOver = go.GetComponent<GUIText> ();
+		}
+		go = GameObject.Find ("RoundResult");
+		if (go != null) {
+			GTRoundResult = go.GetComponent<GUIText> ();
+		}
+		//make them invisible
+		ShowResultGTs (false);
+
+		go = GameObject.Find ("HighScore");
+		string hScore = "High Score: " + Utils.AddCommasToNumber (HIGH_SCORE);
+		go.GetComponent<GUIText> ().text = hScore;
+	}
+
+	void ShowResultGTs(bool show) {
+		GTGameOver.gameObject.SetActive (show);
+		GTRoundResult.gameObject.SetActive (show);
 	}
 
 	void Start() {
@@ -372,20 +397,28 @@ public class Prospector : MonoBehaviour {
 		//this second switch statement handles round wins and losses
 		switch (sEvt) {
 		case ScoreEvent.gameWin:
+			GTGameOver.text = "Round Over";
 			// If it is a win add the score to the next round
 			// static fields are NOT reset by Application.LoadLevel()
 			Prospector.SCORE_FROM_PREV_ROUND = score;
 			print ("You won this round! Round score: " + score);
+			GTRoundResult.text = "You won this round!\nRound Score: "+score;
+			ShowResultGTs(true);
 			break;
+			GTGameOver.text = "Game Over";
 		case ScoreEvent.gameLoss:
 			// If it is a loss check against the high score
 			if (Prospector.HIGH_SCORE <= score) {
 				print ("You got the high score! High score: " + score);
+				string sRR = "You got the high score!\nHigh Score: "+score;
+				GTRoundResult.text = sRR;
 				Prospector.HIGH_SCORE = score;
 				PlayerPrefs.SetInt("ProspectorHighScore", score);
 			} else {
 				print ("Your final score for the game was: "+score);
+				GTRoundResult.text = "Your Final Score was: "+score;
 			}
+			ShowResultGTs(true);
 			break;
 		default:
 			print ("score: "+score+"  scoreRun:"+scoreRun+"  chain:"+chain);
