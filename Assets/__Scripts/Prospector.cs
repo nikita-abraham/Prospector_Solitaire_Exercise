@@ -3,9 +3,21 @@ using System.Collections;
 using System.Collections.Generic;
 
 
+//an enum to handle all the possible scoring events
+public enum ScoreEvent {
+	draw, 
+	mine, 
+	mineGold, 
+	gameWin, 
+	gameLoss
+}
+
 public class Prospector : MonoBehaviour {
 
 	static public Prospector 	S;
+	static public int SCORE_FROM_PREV_ROUND = 0;
+	static public int HIGH_SCORE = 0;
+
 	public Deck					deck;
 	public TextAsset			deckXML;
 
@@ -20,11 +32,24 @@ public class Prospector : MonoBehaviour {
 	public List<CardProspector> tableau;
 	public List<CardProspector> discardPile;
 
+	public List<CardProspector> drawPile;
+
+	//fields to track score info
+	public int chain = 0; //number of cards in this run
+	public int scoreRun = 0;
+	public int score = 0;
+
 	void Awake(){
 		S = this;
+		//check for a high score in PlayerPrefs
+		if (PlayerPrefs.HasKey ("ProspectorHighScore")) {
+			HIGH_SCORE = PlayerPrefs.GetInt ("ProspectorHighScore");
+		}
+		//add the score from last round, whihc will be >0 if it was a win 
+		score += SCORE_FROM_PREV_ROUND;
+		//reset the SCORE_FROM_PREV_ROUND
+		SCORE_FROM_PREV_ROUND = 0;
 	}
-
-	public List<CardProspector> drawPile;
 
 	void Start() {
 		deck = GetComponent<Deck> ();
@@ -44,6 +69,19 @@ public class Prospector : MonoBehaviour {
 		CardProspector cd = drawPile [0]; //pull the 0th CardProspector
 		drawPile.RemoveAt (0); //then remove it from List<> drawPile
 		return(cd);
+	}
+
+	// Convert from the layoutID int to the CardProspector with that ID
+	CardProspector FindCardByLayoutID(int layoutID) {
+		foreach (CardProspector tCP in tableau) {
+			// Search through all cards in the tableau List<>
+			if (tCP.layoutID == layoutID) {
+				// If the card has the same ID, return it
+				return(tCP);
+			}
+		}
+		// If it is not found, return null
+		return(null);
 	}
 
 	//layoutGame() positions the initial tableau of cards
@@ -79,6 +117,14 @@ public class Prospector : MonoBehaviour {
 			tableau.Add (cp); // Add ths CardProspector to the List<> tableau
 		}
 
+		// Set which cards are hiding others
+		foreach (CardProspector tCP in tableau) {
+			foreach (int hid in tCP.slotDef.hiddenBy) {
+				cp = FindCardByLayoutID(hid);
+				tCP.hiddenBy.Add (cp);
+			}
+		}
+
 		//set up the initial target card
 		MoveToTarget (Draw ());
 
@@ -110,11 +156,31 @@ public class Prospector : MonoBehaviour {
 			MoveToDiscard (target); //moves the target to the discardPile
 			MoveToTarget (Draw ()); //moves the next drawn card to the target
 			UpdateDrawPile (); //restacks the drawPile
+			ScoreManager(ScoreEvent.draw);
 			break;
 		case CardState.tableau:
 			//clicking a card in the tableau will check if its a valid play
+			bool validMatch = true;
+			if (!cd.faceUp) {
+				// If the card is face-down, it is not valid
+				validMatch = false;
+			}
+			if (!AdjacentRank (cd, target)) {
+				// If it is not an adjacent rank, it is not valid
+				validMatch = false;
+			}
+			if (!validMatch)
+				return; // return if not valid
+			// Yay! It is a valid card.
+			tableau.Remove (cd); // Remove it from the tableau List
+			MoveToTarget (cd); // Make it the target card
+			SetTableauFaces(); //update Tableau card face-ups
+			ScoreManager(ScoreEvent.mine);
 			break;
 		}
+
+		//check to see whether the game is over or not
+		CheckForGameOver ();
 	}
 
 	// Moves the current target to the discardPile
@@ -170,6 +236,113 @@ public class Prospector : MonoBehaviour {
 			// Set depth sorting
 			cd.SetSortingLayerName(layout.drawPile.layerName);
 			cd.SetSortOrder(-10*i);
+		}
+	}
+
+	// Return true if the two cards are adjacent in rank (A & K wrap around)
+	public bool AdjacentRank(CardProspector c0, CardProspector c1) {
+		// If either card is face-down, it is not adjacent
+		if (!c0.faceUp || !c1.faceUp) return(false);
+		
+		// if they are 1 apart, they are adjacent
+		if (Mathf.Abs (c0.rank - c1.rank) == 1) {
+			return(true);
+		}
+		// If one is A and the other King, they are adjacent
+		if (c0.rank == 1 && c1.rank == 13) return (true);
+		if (c0.rank == 13 && c1.rank == 1) return (true);
+		
+		// Otherwise, return false
+		return(false);
+	}
+
+	// This turns cards in the Mine face-up or face-down
+	void SetTableauFaces() {
+		foreach (CardProspector cd in tableau) {
+			bool fup = true; // Assume the card will be face-up
+			foreach (CardProspector cover in cd.hiddenBy) {
+				// If either of the covering cards are in the tableau
+				if (cover.state == CardState.tableau) {
+					fup = false; // then this card is face-down
+				}
+			}
+			cd.faceUp = fup; // Set the value on the card
+		}
+	}
+
+	//test whether the game is over
+	void CheckForGameOver() {
+		//if the tableau is empty, this game is over
+		if(tableau.Count==0) {
+			//call GameOver() with a win 
+			GameOver(true);
+			return; 
+		}
+		// If there are still cards in the drawPile, the game's not over 
+		if (drawPile.Count > 0) {
+			return;
+		}
+		// Check for remaining valid plays
+		foreach (CardProspector cd in tableau) {
+			if (AdjacentRank(cd,target)) {
+				// If there is a valid play, the game is not over
+				return;
+			}
+		}
+		// Since there are no valid plays, the game is over
+		// Call GameOver with a loss
+		GameOver (false);
+	}
+
+	//called when the game is over. Simple for now, but expandable
+	void GameOver(bool won) {
+		if (won) {
+			ScoreManager(ScoreEvent.gameWin);
+		} else {
+			ScoreManager(ScoreEvent.gameLoss);
+		}
+		//reload the scene, resetting the game
+		Application.LoadLevel ("__Prospector_Scene_0");
+	}
+
+	//ScoreManager handles all of the scoring 
+	void ScoreManager(ScoreEvent sEvt) {
+		switch (sEvt) {
+			// Same things need to happen whether it is a draw, a win or a loss
+		case ScoreEvent.draw: // Drawing a card
+		case ScoreEvent.gameWin: // Won the round
+		case ScoreEvent.gameLoss: // Lost the round
+			chain = 0; // resets the score chain
+			score += scoreRun; // add scoreRun to total score
+			scoreRun = 0; // reset scoreRun
+			break;
+		case ScoreEvent.mine: // Remove a mine card
+			chain++; // increases the score chain
+			scoreRun += chain; // add score for this card to run
+			break;
+		}
+		
+		//this second switch statement handles round wins and losses
+		switch (sEvt) {
+		case ScoreEvent.gameWin:
+			// If it is a win add the score to the next round
+			// static fields are NOT reset by Application.LoadLevel()
+			Prospector.SCORE_FROM_PREV_ROUND = score;
+			print ("You won this round! Round score: " + score);
+			break;
+		case ScoreEvent.gameLoss:
+			// If it is a loss check against the high score
+			if (Prospector.HIGH_SCORE <= score) {
+				print ("You got the high score! High score: " + score);
+				Prospector.HIGH_SCORE = score;
+				PlayerPrefs.SetInt("ProspectorHighScore", score);
+			} else {
+				print ("Your final score for the game was: "+score);
+			}
+			break;
+		default:
+			print ("score: "+score+"  scoreRun:"+scoreRun+"  chain:"+chain);
+			break;
 		}
 	}
 
