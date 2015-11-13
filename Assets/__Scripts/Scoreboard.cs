@@ -21,6 +21,7 @@ using System.Collections.Generic;
 			set {
 				_score = value;
 				_scoreString = Utils.AddCommasToNumber (_score);
+				GetComponent<GUIText>().text = _scoreString;
 			}
 		}
 		
